@@ -1,0 +1,9 @@
+#
+#  Leancloud Waline Audit Robot
+#  (C) Copyright 2022 非科学の河童, All Rights Reserved.
+# 
+# _config.yml
+# 配置文件
+
+LeanAppId: xxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxx
+LeanAppKey: xxxxxxxxxxxxxxxxxxxxxxxx

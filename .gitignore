@@ -1,0 +1,6 @@
+whitelist.txt
+blacklist.txt
+__pycache__/il2db.cpython-39.pyc
+__pycache__/importEmailaddrs2List.cpython-39.pyc
+__pycache__/lwarUtils.cpython-39.pyc
+__pycache__/Shikieiki.cpython-39.pyc
