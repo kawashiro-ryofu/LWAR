@@ -74,7 +74,7 @@ try:
             log("上传黑名单\t("+str(count)+"/"+str(total)+")")
 
 except Exception as e:
-    log(str(e))
+    log(str(e),E)
     os._exit(-1)
 finally:
     del(count)
