@@ -43,6 +43,7 @@ try:
     count = 0
     total = len(whitelist)
     for a in whitelist:
+        sleep(0.5)
         count += 1
         a = a.replace('\n', '')
         a = a.replace(' ','')
@@ -60,6 +61,7 @@ try:
     count = 0
     total = len(blacklist)
     for a in blacklist:
+        sleep(0.5)
         count += 1
         a = a.replace('\n', '')
         a = a.replace(' ','')
