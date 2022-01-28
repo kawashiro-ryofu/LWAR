@@ -10,13 +10,16 @@ il2db.py
 '''
 import leancloud
 import Shikieiki
-#=========================================================
-#  自行设置
+from Shikieiki import log
+
 __LEAN_APP_ID__ = Shikieiki.config['LeanAppId']
 __LEAN_APP_KEY__ = Shikieiki.config['LeanAppKey']
 
-#=========================================================
+I = 0
+E = 1
+W = 2
 
+#=========================================================
 # 初始化leancloud
 leancloud.init(__LEAN_APP_ID__, __LEAN_APP_KEY__)
 
@@ -30,27 +33,46 @@ def setprop(r, d):
         d.set('mail', a)
         d.save()
 
+# To-Do 改多线程
 # 读入上传白名单地址
-c = leancloud.Object.extend('Whitelist')
-whitelist = Shikieiki.WhiteEmailADDRs
+try:
+    c = leancloud.Object.extend('Whitelist')
+    whitelist = Shikieiki.WhiteEmailADDRs
 
-for a in whitelist:
-    a = a.replace('\n', '')
+    count = 0
+    total = len(whitelist)
+    for a in whitelist:
+        count += 1
+        a = a.replace('\n', '')
+        a = a.replace(' ','')
+        if(a == ""):
+            log("跳过\t\t("+str(count)+"/"+str(total)+")",W)
+        else:
+            r = c.query
+            r.equal_to('mail',a)
+            setprop(r, c())
+            log("上传白名单\t("+str(count)+"/"+str(total)+")")
 
-    r = c.query
-    r.equal_to('mail',a)
+    # 读入上传黑名单地址
+    c = leancloud.Object.extend('Blacklist')
+    blacklist = Shikieiki.BlackEmailADDRs
+    count = 0
+    total = len(blacklist)
+    for a in blacklist:
+        count += 1
+        a = a.replace('\n', '')
+        a = a.replace(' ','')
+        if(a == ""):
+            log("跳过\t\t("+str(count)+"/"+str(total)+")",W)
+        else:
+            r = c.query
+            r.equal_to('mail',a)
+            setprop(r, c())
+            log("上传黑名单\t("+str(count)+"/"+str(total)+")")
 
-    setprop(r, c())
-
-# 读入上传黑名单地址
-c = leancloud.Object.extend('Blacklist')
-blacklist = Shikieiki.BlackEmailADDRs
-
-
-for a in blacklist:
-    a = a.replace('\n', '')
-
-    r = c.query
-    r.equal_to('mail',a)
-
-    setprop(r, c())
+except Exception as e:
+    log(str(e))
+    os._exit(-1)
+finally:
+    del(count)
+    del(total)

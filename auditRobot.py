@@ -8,15 +8,49 @@ auditRobot.py
 自动审核
 
 '''
-import il2db
+
 import leancloud
 import datetime
 import pytz
 import threading
 import queue
+import os
+import sys
+import platform
+import signal
+from time import sleep
+from Shikieiki import log
 
+I = 0
+W = 1
+E = 2
 
 #=========================================================
+# 信号处理
+def signal_handler(signum, frame):
+    log("Received Signal:" + str(signum) + ", Exit", W)
+    os._exit(0)
+
+ostype = platform.system()
+
+if(ostype == "Linux"):
+    signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGQUIT, signal_handler)
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGCONT, signal_handler)
+elif(ostype == "Windows"):
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGABRT, signal_handler)
+    signal.signal(signal.SIGFPE, signal_handler)
+    signal.signal(signal.SIGILL, signal_handler)
+    signal.signal(signal.SIGSEGV, signal_handler)
+else:
+    pass
+import il2db
+
 #  自行设置
 __LEAN_APP_ID__ = il2db.Shikieiki.config["LeanAppId"]
 __LEAN_APP_KEY__ = il2db.Shikieiki.config["LeanAppKey"]
@@ -33,15 +67,15 @@ wl = leancloud.Object.extend('Whitelist')
 blq = bl.query
 wlq = wl.query
 
-# 查询等待审核的评论
-c = leancloud.Object.extend('Comment')
-d = c.query
-d.equal_to('status', 'waiting')
-
-
-# Leancloud每次请求返回100条数据，mRecentTime是上次请求返回的最后一个object的发布时间，凭借此再次请求
-mRecentTime = datetime.datetime(2020, 8, 29).replace(tzinfo=pytz.timezone('UTC')) 
-
+try:
+    # Leancloud每次请求返回100条数据，mRecentTime是上次请求返回的最后一个object的发布时间，凭借此再次请求
+    mRecentTime = datetime.datetime(2020, 8, 29).replace(tzinfo=pytz.timezone('UTC')) 
+    c = leancloud.Object.extend('Comment')
+    d = c.query
+    d.equal_to('status', 'waiting')
+except Exception as e:
+    log(str(e), E)
+    os._exit(-1)
 
 # 遍历leancloud.query.Query.find()生成列表
 # l -> leancloud.query.Query.find()函数返回的列表
@@ -98,7 +132,7 @@ def updateObjSingleKey(objectId, key, value):
     m = d.get(objectId)
     m.set(key, value)
     m.save()
-    print(objectId, key, value)
+    log("写入"+str(objectId))
 
 
 # 多线程getpage
@@ -124,47 +158,71 @@ class gpwt(threading.Thread):
 # 获取邮箱黑名单、白名单与等待审核评论队列
 
 
+try:
+    log("抓取待审核评论：开始")
+    # 创建线程
+    t3 = gpwt(3,  'GetQueueOfComments2BeAudit', d, "objectId", "mail", "comment")
+    # 阻塞
+    t3.start()
+    t3.join()
+    log("抓取待审核评论：完成")
+except Exception as e:
+    log(str(e), E)
+    os._exit(-1)
 
-# 创建线程
+try:
+    # 得到白名单、黑名单和待审核评论队列
+    WhiteEmailADDRs:list = il2db.Shikieiki.WhiteEmailADDRs
+    BlackEmailADDRs:list = il2db.Shikieiki.BlackEmailADDRs
+    log("载入待审核评论队列：开始")
+    _2BeAuditComments:queue = queue.Queue()
+    for a in t3.output:
+        _2BeAuditComments.put(a)
+    log("载入待审核评论队列：完成")
+    #=========================================================
+    # 自动审核
+    CommentsObjectId:dict = {
+        "approved": queue.Queue(), 
+        "waiting": queue.Queue(), 
+        "spam": queue.Queue()
+    }
 
-t3 = gpwt(3,  'GetQueueOfComments2BeAudit', d, "objectId", "mail", "comment")
+except Exception as e:
+    log(str(e), E)
+    os._exit(-1)
 
-# 阻塞
+try:
+    if(_2BeAuditComments.empty()):
+        log("无待审核评论！")
+    while(not _2BeAuditComments.empty()):
+        C2audit = _2BeAuditComments.get_nowait()
+        if(C2audit['mail'] in BlackEmailADDRs):
+            CommentsObjectId["spam"].put(C2audit['objectId'])
+            log("评论objectId:" + C2audit['objectId'] + "\t设为：不予通过(spam)")
+        elif(C2audit['mail'] in WhiteEmailADDRs):
+            CommentsObjectId["approved"].put(C2audit['objectId'])
+            log("评论objectId:" + C2audit['objectId'] + "\t设为：审核通过(approved)")
+        else:
+            CommentsObjectId["waiting"].put(C2audit['objectId'])
+            log("评论objectId:" + C2audit['objectId'] + "\t设为：搁置审核(waiting)", W)
 
-t3.start()
-t3.join()
+    #=========================================================
+    # 自动执行
 
-# 得到白名单、黑名单和待审核评论队列
-WhiteEmailADDRs:list = il2db.Shikieiki.WhiteEmailADDRs
-BlackEmailADDRs:list = il2db.Shikieiki.BlackEmailADDRs
-_2BeAuditComments:queue = queue.Queue()
+    status = ["approved", "waiting", "spam"]
+    
+    for q in status:
+        log("写入["+q+"]评论：开始")
+        while(not CommentsObjectId[q].empty()):
+            updateObjSingleKey(CommentsObjectId[q].get_nowait(), "status", q)
+        log("写入["+q+"]评论：完成")
 
-for a in t3.output:
-    _2BeAuditComments.put(a)
-
-#=========================================================
-# 自动审核
-
-CommentsObjectId:dict = {
-    "approved": queue.Queue(), 
-    "waiting": queue.Queue(), 
-    "spam": queue.Queue()
-}
-
-while(not _2BeAuditComments.empty()):
-    C2audit = _2BeAuditComments.get_nowait()
-    if(C2audit['mail'] in BlackEmailADDRs):
-        CommentsObjectId["spam"].put(C2audit['objectId'])
-    elif(C2audit['mail'] in WhiteEmailADDRs):
-        CommentsObjectId["approved"].put(C2audit['objectId'])
-    else:
-        CommentsObjectId["waiting"].put(C2audit['objectId'])
-
-#=========================================================
-# 自动执行
-
-status = ["approved", "waiting", "spam"]
-for q in status:
-    while(not CommentsObjectId[q].empty()):
-        updateObjSingleKey(CommentsObjectId[q].get_nowait(), "status", q)
-
+except Exception as e:
+    log(str(e), E)
+    os._exit(-1)
+else:
+    log("完成！")
+    log("等待下一次更新")
+    sleep(30)
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
