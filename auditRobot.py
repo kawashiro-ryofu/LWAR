@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/python3
 '''
 
 Leancloud Waline Audit Robot

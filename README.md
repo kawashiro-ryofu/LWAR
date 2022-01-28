@@ -42,7 +42,8 @@ pip install -r requirements.txt
 
 ## To-Do
 
- - 解决`WhiteEmailADDRs`和`BlackEmailADDRs`的空格问题
- - 加入日志功能
- - 定期重启
+ - ~~解决`WhiteEmailADDRs`和`BlackEmailADDRs`的空格问题~~
+ - ~~加入日志功能~~
+ - ~~定期重启~~
+ - 加入守护进程根据评论数变动更新而非现阶段定期重启
  - 加入正则表达式
