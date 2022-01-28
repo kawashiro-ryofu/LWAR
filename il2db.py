@@ -10,6 +10,7 @@ il2db.py
 '''
 import leancloud
 import Shikieiki
+import os
 from Shikieiki import log
 
 __LEAN_APP_ID__ = Shikieiki.config['LeanAppId']
